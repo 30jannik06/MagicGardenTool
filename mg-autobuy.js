@@ -1,5 +1,30 @@
+// ==UserScript==
+// @name         MG Auto-Buy
+// @namespace    mg-autobuy
+// @version      1.0
+// @description  Kauft ausgewählte Shop-Items automatisch bei Restock für magicgarden.gg
+// @match        https://magicgarden.gg/*
+// @run-at       document-idle
+// @grant        none
+// ==/UserScript==
 (function() {
     if (window.mgAutoBuy) window.mgAutoBuy.destroy();
+
+    // Wartet bis zu `timeoutMs` darauf, dass `check()` wahr zurückgibt, und ruft dann `onReady()`.
+    // Nötig weil Tampermonkey das Script automatisch bei jedem Seitenaufruf startet — die
+    // Spiel-eigene Verbindung kann dabei beim Start noch fehlen (anders als beim manuellen
+    // Konsolen-Paste, wo man ohnehin erst einfügt, wenn das Spiel schon sichtbar läuft).
+    function waitFor(check, onReady, { timeoutMs = 20000, intervalMs = 300 } = {}) {
+        const start = Date.now();
+        (function poll() {
+            if (check()) { onReady(); return; }
+            if (Date.now() - start > timeoutMs) {
+                console.warn('[Auto-Buy] Timeout — MagicCircle_RoomConnection nicht gefunden.');
+                return;
+            }
+            setTimeout(poll, intervalMs);
+        })();
+    }
 
     // Eigenständiges Zusatz-Script, unabhängig von mg-copilot.js / mg-weather-forecast.js ladbar.
     // Kauft konfigurierte Shop-Items automatisch, sobald sie verfügbar sind — gedacht für
@@ -302,15 +327,18 @@
         }
     };
 
-    const connection = window.MagicCircle_RoomConnection;
-    if (!connection || typeof connection.subscribeToPatches !== 'function') {
-        log('✕ MagicCircle_RoomConnection nicht gefunden.', '#f87171');
-    } else {
-        const maybeUnsub = connection.subscribeToPatches((_patches, fullState) => {
-            latestGame = (fullState && fullState.child && fullState.child.data) || null;
-        });
-        if (typeof maybeUnsub === 'function') unsubscribe = maybeUnsub;
-    }
+    waitFor(
+        () => window.MagicCircle_RoomConnection && typeof window.MagicCircle_RoomConnection.subscribeToPatches === 'function',
+        () => {
+            if (!window.mgAutoBuy) return; // zwischenzeitlich via destroy() beendet
+            const maybeUnsub = window.MagicCircle_RoomConnection.subscribeToPatches((_patches, fullState) => {
+                latestGame = (fullState && fullState.child && fullState.child.data) || null;
+            });
+            if (typeof maybeUnsub === 'function') unsubscribe = maybeUnsub;
+            log('Verbunden.', '#4ade80');
+        }
+    );
+    log('Warte auf Spielverbindung...', '#94a3b8');
 
     window.mgAutoBuy.intervalId = setInterval(() => {
         ensureListener(getSocket());

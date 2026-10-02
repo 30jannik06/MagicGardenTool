@@ -1,3 +1,12 @@
+// ==UserScript==
+// @name         Magic Garden Co-Pilot
+// @namespace    mg-copilot
+// @version      1.0
+// @description  Ernte-Timer, ROI-Rechner, Ernten/Verkaufen-Automatisierung für magicgarden.gg
+// @match        https://magicgarden.gg/*
+// @run-at       document-idle
+// @grant        none
+// ==/UserScript==
 (function() {
     if (window.mgDashboard) window.mgDashboard.destroy();
 
@@ -828,7 +837,17 @@
         }
     }, 250);
 
-    resolveMyIdentity();
+    // Wartet bis zu 20s auf den Jotai-Atom-Cache, bevor die Identitäts-Auflösung versucht wird.
+    // Nötig für Tampermonkey (automatischer Start bei jedem Seitenaufruf, @run-at document-idle):
+    // anders als beim manuellen Konsolen-Paste (wo man ohnehin erst einfügt, sobald das Spiel
+    // sichtbar läuft) kann der Cache beim Start dieses Scripts noch nicht existieren.
+    (async function waitForAtomCacheThenResolve() {
+        const t0 = Date.now();
+        while (!getAtomCache() && Date.now() - t0 < 20000) {
+            await new Promise(r => setTimeout(r, 300));
+        }
+        if (window.mgDashboard) resolveMyIdentity();
+    })();
 
     console.log("%c[OverGarden Co-Pilot] Vollständig geladen! Drücke 'H' zum Ein-/Ausblenden.", "color:#38bdf8; font-weight:bold; font-size:12px;");
 })();

@@ -1,5 +1,30 @@
+// ==UserScript==
+// @name         MG Weather Forecast
+// @namespace    mg-weather-forecast
+// @version      1.0
+// @description  Zeigt aktuelles und kommendes Wetter (inkl. Mond-Events) für magicgarden.gg
+// @match        https://magicgarden.gg/*
+// @run-at       document-idle
+// @grant        none
+// ==/UserScript==
 (function() {
     if (window.mgWeather) window.mgWeather.destroy();
+
+    // Wartet bis zu `timeoutMs` darauf, dass `check()` wahr zurückgibt, und ruft dann `onReady()`.
+    // Nötig weil Tampermonkey das Script automatisch bei jedem Seitenaufruf startet — anders als
+    // beim manuellen Konsolen-Paste (wo man ohnehin erst einfügt, wenn das Spiel sichtbar lädt)
+    // kann die Spiel-eigene Verbindung beim Start dieses Scripts noch fehlen.
+    function waitFor(check, onReady, { timeoutMs = 20000, intervalMs = 300 } = {}) {
+        const start = Date.now();
+        (function poll() {
+            if (check()) { onReady(); return; }
+            if (Date.now() - start > timeoutMs) {
+                console.warn('[Wetter-Forecast] Timeout — MagicCircle_RoomConnection nicht gefunden.');
+                return;
+            }
+            setTimeout(poll, intervalMs);
+        })();
+    }
 
     // Eigenständiges Zusatz-Script, unabhängig vom Co-Pilot (mg-copilot.js) ladbar.
     // Zeigt nicht nur das naechste Wetter, sondern mehrere kommende Events mit Uhrzeit.
@@ -119,19 +144,17 @@
         }
     };
 
-    // 3. Datenquelle anbinden
-    const connection = window.MagicCircle_RoomConnection;
-    if (!connection || typeof connection.subscribeToPatches !== 'function') {
-        console.warn('[Wetter-Forecast] window.MagicCircle_RoomConnection.subscribeToPatches nicht gefunden — Spiel noch nicht geladen oder API geändert.');
-        const cur = document.getElementById('mgw-current');
-        cur.innerText = '✕ Verbindung zum Spiel nicht gefunden';
-        cur.style.color = '#f87171';
-    } else {
-        const maybeUnsub = connection.subscribeToPatches((_patches, fullState) => {
-            latestGame = (fullState && fullState.child && fullState.child.data) || null;
-        });
-        if (typeof maybeUnsub === 'function') unsubscribe = maybeUnsub;
-    }
+    // 3. Datenquelle anbinden — wartet, falls die Verbindung beim Start noch nicht existiert.
+    waitFor(
+        () => window.MagicCircle_RoomConnection && typeof window.MagicCircle_RoomConnection.subscribeToPatches === 'function',
+        () => {
+            if (!window.mgWeather) return; // zwischenzeitlich via destroy() beendet
+            const maybeUnsub = window.MagicCircle_RoomConnection.subscribeToPatches((_patches, fullState) => {
+                latestGame = (fullState && fullState.child && fullState.child.data) || null;
+            });
+            if (typeof maybeUnsub === 'function') unsubscribe = maybeUnsub;
+        }
+    );
 
     // 4. Render Loop
     window.mgWeather.intervalId = setInterval(() => {
