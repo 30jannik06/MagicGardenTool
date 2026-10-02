@@ -6,6 +6,8 @@
 // @match        https://magicgarden.gg/*
 // @run-at       document-idle
 // @grant        none
+// @updateURL    https://raw.githubusercontent.com/30jannik06/MagicGardenTool/main/mg-autobuy.user.js
+// @downloadURL  https://raw.githubusercontent.com/30jannik06/MagicGardenTool/main/mg-autobuy.user.js
 // ==/UserScript==
 (function() {
     if (window.mgAutoBuy) window.mgAutoBuy.destroy();

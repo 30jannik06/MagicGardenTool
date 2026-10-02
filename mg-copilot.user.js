@@ -2,10 +2,12 @@
 // @name         Magic Garden Co-Pilot
 // @namespace    mg-copilot
 // @version      1.0
-// @description  Ernte-Timer, ROI-Rechner, Ernten/Verkaufen-Automatisierung für magicgarden.gg
+// @description  Ernte-Timer, ROI-Rechner und Session-Stats für magicgarden.gg
 // @match        https://magicgarden.gg/*
 // @run-at       document-idle
 // @grant        none
+// @updateURL    https://raw.githubusercontent.com/30jannik06/MagicGardenTool/main/mg-copilot.user.js
+// @downloadURL  https://raw.githubusercontent.com/30jannik06/MagicGardenTool/main/mg-copilot.user.js
 // ==/UserScript==
 (function() {
     if (window.mgDashboard) window.mgDashboard.destroy();

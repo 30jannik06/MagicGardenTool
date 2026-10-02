@@ -6,6 +6,8 @@
 // @match        https://magicgarden.gg/*
 // @run-at       document-idle
 // @grant        none
+// @updateURL    https://raw.githubusercontent.com/30jannik06/MagicGardenTool/main/mg-weather-forecast.user.js
+// @downloadURL  https://raw.githubusercontent.com/30jannik06/MagicGardenTool/main/mg-weather-forecast.user.js
 // ==/UserScript==
 (function() {
     if (window.mgWeather) window.mgWeather.destroy();
