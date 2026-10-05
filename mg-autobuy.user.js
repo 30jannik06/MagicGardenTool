@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         MG Auto-Buy
 // @namespace    mg-autobuy
-// @version      1.2
+// @version      1.3
 // @description  Kauft ausgewählte Shop-Items automatisch bei Restock für magicgarden.gg
 // @match        https://magicgarden.gg/*
 // @run-at       document-idle
@@ -13,7 +13,7 @@
     if (window.mgAutoBuy) window.mgAutoBuy.destroy();
 
     // Muss mit @version im Header übereinstimmen.
-    const SCRIPT_VERSION = '1.2';
+    const SCRIPT_VERSION = '1.3';
     const UPDATE_URL = 'https://raw.githubusercontent.com/30jannik06/MagicGardenTool/main/mg-autobuy.user.js';
 
     function setupVersionButton(btn) {
@@ -90,6 +90,16 @@
         ['tool', 'Tool'], ['seed', 'Seed'], ['egg', 'Egg'], ['decor', 'Decor'],
         ['snow', 'Snow'], ['thunder', 'Thunder'], ['dawn', 'Dawn'], ['amber', 'Amber'], ['rain', 'Rain']
     ];
+    // Event-Shops sind außerhalb ihres Events leer — damit man Items trotzdem vorab abhaken kann,
+    // gibt es feste Listen (IDs aus garden-companion's SEASONAL_SHOP_ITEMS, Dawn/Amber gegen das
+    // Wiki geprüft). Live-Items aus dem Shop werden zusätzlich angezeigt.
+    const SEASONAL_SHOP_ITEMS = {
+        dawn: ['Daisy', 'Lavender', 'Saffron', 'Eggplant', 'Ube', 'Dawnbreaker', 'DawnCelestial', 'DawnEgg'],
+        amber: ['Persimmon', 'Habanero', 'Marigold', 'Emberbloom', 'MoonCelestial', 'AmberEgg', 'HungerShard', 'XPShard', 'StrengthShard', 'StoneMoonGate', 'StoneTorch', 'StoneFirepit'],
+        thunder: ['Cattail', 'Cardoon', 'PricklyPear', 'Milkcap', 'ThunderCelestial', 'ThunderEgg', 'ThunderWardShard', 'SmallGravestone', 'MediumGravestone', 'LargeGravestone', 'Cauldron', 'WindchimeMoon', 'WindchimeStar', 'WindSpinner', 'WindTurner'],
+        snow: ['Snowdrop', 'PineTree', 'Leek', 'Squash', 'Poinsettia', 'SnowEgg', 'ChilledPotion', 'FrozenPotion', 'SnowWardShard', 'ColoredStringLights', 'WoodCaribou', 'StoneCaribou', 'MarbleCaribou'],
+        rain: ['Clover', 'Delphinium', 'Mushroom', 'VioletCort', 'RainWardShard', 'WoodFrog', 'StoneBirdbath', 'MarbleFountain']
+    };
     let activeShopTab = 'tool';
     let latestGame = null;
     let unsubscribe = null;
@@ -202,19 +212,22 @@
         const el = document.getElementById('mgab-items');
         if (!el) return;
         const data = latestGame && latestGame.shops && latestGame.shops[activeShopTab];
-        const items = Array.isArray(data && data.inventory) ? data.inventory : [];
-        if (!items.length) {
+        const live = Array.isArray(data && data.inventory) ? data.inventory : [];
+        const rows = live.map(item => ({ id: itemId(item), stock: item.initialStock ?? 0 }));
+        for (const id of SEASONAL_SHOP_ITEMS[activeShopTab] || []) {
+            if (!rows.some(r => r.id === id)) rows.push({ id, stock: null });
+        }
+        if (!rows.length) {
             el.innerHTML = `<div style="color:#64748b; font-size:12px; padding:4px 2px;">Warte auf Shop-Daten...</div>`;
             return;
         }
-        el.innerHTML = items.map(item => {
-            const id = itemId(item);
+        el.innerHTML = rows.map(({ id, stock }) => {
             const checked = hasTarget(activeShopTab, id);
             return `
                 <label style="display:flex; justify-content:space-between; align-items:center; background:#1e293b; border:1px solid #334155; border-radius:7px; padding:6px 10px; cursor:pointer;">
                     <span>${id}</span>
                     <span style="display:flex; align-items:center; gap:8px;">
-                        <span style="color:#64748b; font-size:11px;">${item.initialStock ?? 0}x</span>
+                        <span style="color:#64748b; font-size:11px;">${stock === null ? '–' : stock + 'x'}</span>
                         <input type="checkbox" data-item="${id}" ${checked ? 'checked' : ''} style="width:16px; height:16px; cursor:pointer;">
                     </span>
                 </label>
