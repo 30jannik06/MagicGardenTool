@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         MG Auto-Buy
 // @namespace    mg-autobuy
-// @version      1.0
+// @version      1.1
 // @description  Kauft ausgewählte Shop-Items automatisch bei Restock für magicgarden.gg
 // @match        https://magicgarden.gg/*
 // @run-at       document-idle
@@ -205,6 +205,7 @@
     // Pro Shop gemerkt, bei welchem secondsUntilRestock-Wert zuletzt gekauft wurde, damit nicht
     // bei jedem Tick innerhalb desselben Restock-Fensters erneut gekauft wird.
     const boughtSinceRestock = new Set();
+    const retryCounts = new Map();
     let lastRestockClock = new Map();
 
     const origWSSend = WebSocket.prototype.send;
@@ -233,10 +234,18 @@
         try {
             const msg = JSON.parse(event.data);
             if (msg.type === 'QuinoaCommandResult' && pendingLabels.has(msg.requestId)) {
-                const label = pendingLabels.get(msg.requestId);
+                const { label, key } = pendingLabels.get(msg.requestId);
                 pendingLabels.delete(msg.requestId);
-                if (msg.ok === false) log(`✕ Kauf fehlgeschlagen: ${label} (${msg.code || 'unbekannt'})`, '#f87171');
-                else log(`✓ Gekauft: ${label}`, '#4ade80');
+                if (msg.ok === false) {
+                    const tries = (retryCounts.get(key) || 0) + 1;
+                    retryCounts.set(key, tries);
+                    if (tries < 3) {
+                        log(`✕ Kauf fehlgeschlagen: ${label} (${msg.code || 'unbekannt'}) — neuer Versuch in 5s`, '#f87171');
+                        setTimeout(() => boughtSinceRestock.delete(key), 5000);
+                    } else {
+                        log(`✕ Kauf fehlgeschlagen: ${label} (${msg.code || 'unbekannt'}) — gebe bis zum nächsten Restock auf`, '#f87171');
+                    }
+                } else log(`✓ Gekauft: ${label}`, '#4ade80');
             }
         } catch (e) {}
     }
@@ -253,7 +262,7 @@
     };
     wsPatchInstalled = true;
 
-    function sendQuinoaCommand(command, label) {
+    function sendQuinoaCommand(command, label, key) {
         const ws = getSocket();
         ensureListener(ws);
         if (!ws || ws.readyState !== 1) {
@@ -261,7 +270,7 @@
             return;
         }
         const requestId = crypto.randomUUID();
-        if (label) pendingLabels.set(requestId, label);
+        if (label) pendingLabels.set(requestId, { label, key });
         const msg = {
             scopePath: ['Room', 'Quinoa'],
             type: 'QuinoaCommand',
@@ -284,23 +293,32 @@
             viewMode: 'list',
             item: itemPayload(liveItem, shop),
             ...(quantity === 1 ? {} : { quantity })
-        }, label);
+        }, label, `${shop}:${target.id}`);
     }
 
     function processShops() {
         if (!cfg.enabled || !latestGame || !latestGame.shops) return;
         for (const [shop, data] of Object.entries(latestGame.shops)) {
             const items = Array.isArray(data && data.inventory) ? data.inventory : [];
+            // Neues Spiel-Format: restockId wechselt bei jedem Restock (secondsUntilRestock gibt es
+            // nicht mehr). Altes Format bleibt als Fallback: Countdown springt nach oben.
+            const restockId = data && data.restockId != null ? String(data.restockId) : null;
             const seconds = Number(data && data.secondsUntilRestock);
-            const restocked = Number.isFinite(seconds) && lastRestockClock.has(shop) && seconds > lastRestockClock.get(shop);
-            if (Number.isFinite(seconds)) lastRestockClock.set(shop, seconds);
+            let restocked = false;
+            if (restockId !== null) {
+                restocked = lastRestockClock.has(shop) && lastRestockClock.get(shop) !== restockId;
+                lastRestockClock.set(shop, restockId);
+            } else if (Number.isFinite(seconds)) {
+                restocked = lastRestockClock.has(shop) && seconds > lastRestockClock.get(shop);
+                lastRestockClock.set(shop, seconds);
+            }
 
             // Restock erkannt — Merker für diesen Shop verwerfen, damit neu verfügbare Items
-            // wieder gekauft werden dürfen. Der Merker selbst trägt KEINE sich ändernde Zahl mehr
-            // (vorher: secondsUntilRestock im Schlüssel — der zählt jede Sekunde runter, wodurch
-            // der Schlüssel nie stabil war und jeden Tick wie "neu" aussah => Dauerspam).
+            // wieder gekauft werden dürfen. Der Merker trägt keine sich ändernde Zahl (sonst
+            // würde jeder Tick wie "neu" aussehen => Dauerspam).
             if (restocked) {
                 for (const key of [...boughtSinceRestock]) if (key.startsWith(`${shop}:`)) boughtSinceRestock.delete(key);
+                for (const key of [...retryCounts.keys()]) if (key.startsWith(`${shop}:`)) retryCounts.delete(key);
             }
 
             for (const target of cfg.targets) {
