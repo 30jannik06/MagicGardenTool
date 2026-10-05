@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         MG Auto-Buy
 // @namespace    mg-autobuy
-// @version      1.1
+// @version      1.2
 // @description  Kauft ausgewählte Shop-Items automatisch bei Restock für magicgarden.gg
 // @match        https://magicgarden.gg/*
 // @run-at       document-idle
@@ -11,6 +11,50 @@
 // ==/UserScript==
 (function() {
     if (window.mgAutoBuy) window.mgAutoBuy.destroy();
+
+    // Muss mit @version im Header übereinstimmen.
+    const SCRIPT_VERSION = '1.2';
+    const UPDATE_URL = 'https://raw.githubusercontent.com/30jannik06/MagicGardenTool/main/mg-autobuy.user.js';
+
+    function setupVersionButton(btn) {
+        let latest = null;
+        const newer = (a, b) => {
+            const pa = a.split('.').map(Number), pb = b.split('.').map(Number);
+            for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+                if ((pa[i] || 0) !== (pb[i] || 0)) return (pa[i] || 0) > (pb[i] || 0);
+            }
+            return false;
+        };
+        const render = (state) => {
+            if (state === 'update') {
+                btn.textContent = `v${SCRIPT_VERSION} → v${latest} ⬆`;
+                btn.style.background = '#f59e0b';
+                btn.style.color = '#0f172a';
+                btn.title = 'Neue Version verfügbar — klicken zum Installieren';
+            } else if (state === 'current') {
+                btn.textContent = `v${SCRIPT_VERSION} ✓`;
+                btn.title = 'Aktuell — klicken zum erneuten Prüfen';
+            } else {
+                btn.textContent = `v${SCRIPT_VERSION}`;
+                btn.title = 'Klicken zum Prüfen auf Updates';
+            }
+        };
+        const check = async () => {
+            try {
+                const res = await fetch(`${UPDATE_URL}?t=${Date.now()}`, { cache: 'no-store' });
+                const m = (await res.text()).match(/@version\s+([\d.]+)/);
+                if (!m) return;
+                latest = m[1];
+                render(newer(latest, SCRIPT_VERSION) ? 'update' : 'current');
+            } catch (e) { render('unknown'); }
+        };
+        btn.onclick = () => {
+            if (latest && newer(latest, SCRIPT_VERSION)) window.open(UPDATE_URL, '_blank');
+            else check();
+        };
+        render('unknown');
+        check();
+    }
 
     // Wartet bis zu `timeoutMs` darauf, dass `check()` wahr zurückgibt, und ruft dann `onReady()`.
     // Nötig weil Tampermonkey das Script automatisch bei jedem Seitenaufruf startet — die
@@ -92,7 +136,10 @@
     });
     panel.innerHTML = `
         <div id="mgab-header" style="display:flex; justify-content:space-between; align-items:center; cursor:grab; padding-bottom:8px; border-bottom:1px solid #334155;">
-            <span style="font-weight:700; font-size:14px; color:#38bdf8;">🛒 Auto-Buy</span>
+            <span style="display:flex; align-items:center; gap:8px;">
+                <span style="font-weight:700; font-size:14px; color:#38bdf8;">🛒 Auto-Buy</span>
+                <button id="mgab-version" style="background:#1e293b; color:#94a3b8; border:1px solid #475569; border-radius:5px; padding:2px 6px; cursor:pointer; font-size:10px;"></button>
+            </span>
             <span style="display:flex; gap:6px;">
                 <button id="mgab-toggle" style="background:${cfg.enabled ? '#22c55e' : '#475569'}; color:#0f172a; border:none; border-radius:5px; padding:3px 8px; cursor:pointer; font-weight:700; font-size:11px;">${cfg.enabled ? 'AN' : 'AUS'}</button>
                 <button id="mgab-min" style="background:#1e293b; color:#cbd5e1; border:1px solid #475569; border-radius:5px; width:22px; height:22px; cursor:pointer; font-size:13px;">_</button>
@@ -187,6 +234,7 @@
     renderTabs();
     renderItems();
 
+    setupVersionButton(document.getElementById('mgab-version'));
     document.getElementById('mgab-close').onclick = () => window.mgAutoBuy.destroy();
     document.getElementById('mgab-min').onclick = () => {
         cfg.minimized = !cfg.minimized;

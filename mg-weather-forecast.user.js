@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         MG Weather Forecast
 // @namespace    mg-weather-forecast
-// @version      1.0
+// @version      1.1
 // @description  Zeigt aktuelles und kommendes Wetter (inkl. Mond-Events) für magicgarden.gg
 // @match        https://magicgarden.gg/*
 // @run-at       document-idle
@@ -11,6 +11,50 @@
 // ==/UserScript==
 (function() {
     if (window.mgWeather) window.mgWeather.destroy();
+
+    // Muss mit @version im Header übereinstimmen.
+    const SCRIPT_VERSION = '1.1';
+    const UPDATE_URL = 'https://raw.githubusercontent.com/30jannik06/MagicGardenTool/main/mg-weather-forecast.user.js';
+
+    function setupVersionButton(btn) {
+        let latest = null;
+        const newer = (a, b) => {
+            const pa = a.split('.').map(Number), pb = b.split('.').map(Number);
+            for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+                if ((pa[i] || 0) !== (pb[i] || 0)) return (pa[i] || 0) > (pb[i] || 0);
+            }
+            return false;
+        };
+        const render = (state) => {
+            if (state === 'update') {
+                btn.textContent = `v${SCRIPT_VERSION} → v${latest} ⬆`;
+                btn.style.background = '#f59e0b';
+                btn.style.color = '#0f172a';
+                btn.title = 'Neue Version verfügbar — klicken zum Installieren';
+            } else if (state === 'current') {
+                btn.textContent = `v${SCRIPT_VERSION} ✓`;
+                btn.title = 'Aktuell — klicken zum erneuten Prüfen';
+            } else {
+                btn.textContent = `v${SCRIPT_VERSION}`;
+                btn.title = 'Klicken zum Prüfen auf Updates';
+            }
+        };
+        const check = async () => {
+            try {
+                const res = await fetch(`${UPDATE_URL}?t=${Date.now()}`, { cache: 'no-store' });
+                const m = (await res.text()).match(/@version\s+([\d.]+)/);
+                if (!m) return;
+                latest = m[1];
+                render(newer(latest, SCRIPT_VERSION) ? 'update' : 'current');
+            } catch (e) { render('unknown'); }
+        };
+        btn.onclick = () => {
+            if (latest && newer(latest, SCRIPT_VERSION)) window.open(UPDATE_URL, '_blank');
+            else check();
+        };
+        render('unknown');
+        check();
+    }
 
     // Wartet bis zu `timeoutMs` darauf, dass `check()` wahr zurückgibt, und ruft dann `onReady()`.
     // Nötig weil Tampermonkey das Script automatisch bei jedem Seitenaufruf startet — anders als
@@ -102,7 +146,10 @@
     });
     panel.innerHTML = `
         <div id="mgw-header" style="display:flex; justify-content:space-between; align-items:center; cursor:grab; padding-bottom:8px; border-bottom:1px solid #334155;">
-            <span style="font-weight:700; font-size:14px; color:#38bdf8;">🌦️ Wetter-Forecast</span>
+            <span style="display:flex; align-items:center; gap:8px;">
+                <span style="font-weight:700; font-size:14px; color:#38bdf8;">🌦️ Wetter-Forecast</span>
+                <button id="mgw-version" style="background:#1e293b; color:#94a3b8; border:1px solid #475569; border-radius:5px; padding:2px 6px; cursor:pointer; font-size:10px;"></button>
+            </span>
             <button id="mgw-close" style="background:#ef4444; color:#fff; border:none; border-radius:5px; width:22px; height:22px; cursor:pointer; font-weight:bold; font-size:12px;">✕</button>
         </div>
         <div id="mgw-current" style="margin-top:10px; padding:8px 10px; background:#1e293b; border-radius:8px; border:1px solid #334155;"></div>
@@ -110,6 +157,7 @@
     `;
     document.body.appendChild(panel);
     document.getElementById('mgw-close').onclick = () => window.mgWeather.destroy();
+    setupVersionButton(document.getElementById('mgw-version'));
 
     // Drag & Drop
     const header = document.getElementById('mgw-header');

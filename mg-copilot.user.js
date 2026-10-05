@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Magic Garden Co-Pilot
 // @namespace    mg-copilot
-// @version      1.0
+// @version      1.1
 // @description  Ernte-Timer, ROI-Rechner und Session-Stats für magicgarden.gg
 // @match        https://magicgarden.gg/*
 // @run-at       document-idle
@@ -11,6 +11,50 @@
 // ==/UserScript==
 (function() {
     if (window.mgDashboard) window.mgDashboard.destroy();
+
+    // Muss mit @version im Header übereinstimmen.
+    const SCRIPT_VERSION = '1.1';
+    const UPDATE_URL = 'https://raw.githubusercontent.com/30jannik06/MagicGardenTool/main/mg-copilot.user.js';
+
+    function setupVersionButton(btn) {
+        let latest = null;
+        const newer = (a, b) => {
+            const pa = a.split('.').map(Number), pb = b.split('.').map(Number);
+            for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+                if ((pa[i] || 0) !== (pb[i] || 0)) return (pa[i] || 0) > (pb[i] || 0);
+            }
+            return false;
+        };
+        const render = (state) => {
+            if (state === 'update') {
+                btn.textContent = `v${SCRIPT_VERSION} → v${latest} ⬆`;
+                btn.style.background = '#f59e0b';
+                btn.style.color = '#0f172a';
+                btn.title = 'Neue Version verfügbar — klicken zum Installieren';
+            } else if (state === 'current') {
+                btn.textContent = `v${SCRIPT_VERSION} ✓`;
+                btn.title = 'Aktuell — klicken zum erneuten Prüfen';
+            } else {
+                btn.textContent = `v${SCRIPT_VERSION}`;
+                btn.title = 'Klicken zum Prüfen auf Updates';
+            }
+        };
+        const check = async () => {
+            try {
+                const res = await fetch(`${UPDATE_URL}?t=${Date.now()}`, { cache: 'no-store' });
+                const m = (await res.text()).match(/@version\s+([\d.]+)/);
+                if (!m) return;
+                latest = m[1];
+                render(newer(latest, SCRIPT_VERSION) ? 'update' : 'current');
+            } catch (e) { render('unknown'); }
+        };
+        btn.onclick = () => {
+            if (latest && newer(latest, SCRIPT_VERSION)) window.open(UPDATE_URL, '_blank');
+            else check();
+        };
+        render('unknown');
+        check();
+    }
 
     // 1. Settings & Persistence
     const savedConfig = JSON.parse(localStorage.getItem('mg_copilot_cfg') || '{}');
@@ -100,7 +144,8 @@
                 <span id="mg-coins" style="color:#facc15; font-size:14px; font-weight:700;">🪙 --</span>
                 <span id="mg-identity" title="Erkennung deiner eigenen Spieler-Identität" style="font-size:11px; color:#f59e0b;">⏳ Identität...</span>
             </div>
-            <div style="display:flex; gap:6px;">
+            <div style="display:flex; gap:6px; align-items:center;">
+                <button id="mg-version" style="background:#1e293b; color:#94a3b8; border:1px solid #475569; border-radius:5px; padding:2px 6px; cursor:pointer; font-size:10px; height:26px;"></button>
                 <button id="mg-btn-min" style="background:#1e293b; color:#cbd5e1; border:1px solid #475569; border-radius:5px; width:26px; height:26px; cursor:pointer; font-size:14px;">_</button>
                 <button id="mg-btn-close" style="background:#ef4444; color:#fff; border:none; border-radius:5px; width:26px; height:26px; cursor:pointer; font-weight:bold; font-size:14px;">✕</button>
             </div>
@@ -215,6 +260,7 @@
 
     // 7. Tab Routing & Settings Listener
     document.getElementById('mg-btn-close').onclick = () => window.mgDashboard.destroy();
+    setupVersionButton(document.getElementById('mg-version'));
     const bodyEl = document.getElementById('mg-body');
     document.getElementById('mg-btn-min').onclick = () => {
         cfg.minimized = !cfg.minimized;
