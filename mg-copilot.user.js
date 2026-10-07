@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Magic Garden Co-Pilot
 // @namespace    mg-copilot
-// @version      1.1
+// @version      1.2
 // @description  Ernte-Timer, ROI-Rechner und Session-Stats für magicgarden.gg
 // @match        https://magicgarden.gg/*
 // @run-at       document-idle
@@ -13,7 +13,7 @@
     if (window.mgDashboard) window.mgDashboard.destroy();
 
     // Muss mit @version im Header übereinstimmen.
-    const SCRIPT_VERSION = '1.1';
+    const SCRIPT_VERSION = '1.2';
     const UPDATE_URL = 'https://raw.githubusercontent.com/30jannik06/MagicGardenTool/main/mg-copilot.user.js';
 
     function setupVersionButton(btn) {
@@ -321,11 +321,12 @@
         saveCfg();
     };
 
-    // Hotkey: H
+    // Hotkey: Alt+H (plain H löste beim Tippen im Spiel-Chat versehentlich das Ausblenden aus)
     window.mgDashboard._keyListener = (e) => {
-        if (e.key.toLowerCase() === 'h' && !['INPUT', 'SELECT'].includes(document.activeElement.tagName)) {
-            hud.style.display = hud.style.display === 'none' ? 'block' : 'none';
-        }
+        if (!e.altKey || e.ctrlKey || e.metaKey || e.repeat || e.key.toLowerCase() !== 'h') return;
+        const el = document.activeElement;
+        if (el && (['INPUT', 'SELECT', 'TEXTAREA'].includes(el.tagName) || el.isContentEditable)) return;
+        hud.style.display = hud.style.display === 'none' ? 'block' : 'none';
     };
     window.addEventListener('keydown', window.mgDashboard._keyListener);
 
@@ -897,5 +898,5 @@
         if (window.mgDashboard) resolveMyIdentity();
     })();
 
-    console.log("%c[OverGarden Co-Pilot] Vollständig geladen! Drücke 'H' zum Ein-/Ausblenden.", "color:#38bdf8; font-weight:bold; font-size:12px;");
+    console.log("%c[OverGarden Co-Pilot] Vollständig geladen! Drücke 'Alt+H' zum Ein-/Ausblenden.", "color:#38bdf8; font-weight:bold; font-size:12px;");
 })();
