@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Magic Garden Co-Pilot
 // @namespace    mg-copilot
-// @version      1.2
+// @version      1.3
 // @description  Ernte-Timer, ROI-Rechner und Session-Stats für magicgarden.gg
 // @match        https://magicgarden.gg/*
 // @run-at       document-idle
@@ -13,7 +13,7 @@
     if (window.mgDashboard) window.mgDashboard.destroy();
 
     // Muss mit @version im Header übereinstimmen.
-    const SCRIPT_VERSION = '1.2';
+    const SCRIPT_VERSION = '1.3';
     const UPDATE_URL = 'https://raw.githubusercontent.com/30jannik06/MagicGardenTool/main/mg-copilot.user.js';
 
     function setupVersionButton(btn) {
@@ -36,7 +36,7 @@
                 btn.title = 'Aktuell — klicken zum erneuten Prüfen';
             } else {
                 btn.textContent = `v${SCRIPT_VERSION}`;
-                btn.title = 'Klicken zum Prüfen auf Updates';
+                btn.title = 'Klicken: Update-Seite öffnen (Prüfung nicht möglich)';
             }
         };
         const check = async () => {
@@ -49,8 +49,10 @@
             } catch (e) { render('unknown'); }
         };
         btn.onclick = () => {
-            if (latest && newer(latest, SCRIPT_VERSION)) window.open(UPDATE_URL, '_blank');
-            else check();
+            if (latest && !newer(latest, SCRIPT_VERSION)) { check(); return; }
+            // Update bekannt oder Check nicht möglich (z.B. vom Spiel blockiert): Install-Link
+            // öffnen, Tampermonkey zeigt dort selbst, ob es etwas Neues gibt.
+            window.open(UPDATE_URL, '_blank', 'noopener');
         };
         render('unknown');
         check();
