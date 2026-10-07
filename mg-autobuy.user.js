@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         MG Auto-Buy
 // @namespace    mg-autobuy
-// @version      1.3
+// @version      1.4
 // @description  Kauft ausgewählte Shop-Items automatisch bei Restock für magicgarden.gg
 // @match        https://magicgarden.gg/*
 // @run-at       document-idle
@@ -13,7 +13,7 @@
     if (window.mgAutoBuy) window.mgAutoBuy.destroy();
 
     // Muss mit @version im Header übereinstimmen.
-    const SCRIPT_VERSION = '1.3';
+    const SCRIPT_VERSION = '1.4';
     const UPDATE_URL = 'https://raw.githubusercontent.com/30jannik06/MagicGardenTool/main/mg-autobuy.user.js';
 
     function setupVersionButton(btn) {
@@ -404,7 +404,7 @@
             if (wsPatchInstalled) { WebSocket.prototype.send = origWSSend; wsPatchInstalled = false; }
             panel.remove();
             window.mgAutoBuy = null;
-            console.log('%c[Auto-Buy] Beendet.', 'color:#ef4444;');
+            console.warn('[Auto-Buy] Beendet (destroy() aufgerufen von):', new Error().stack);
         }
     };
 
@@ -422,6 +422,11 @@
     log('Warte auf Spielverbindung...', '#94a3b8');
 
     window.mgAutoBuy.intervalId = setInterval(() => {
+        // Das Spiel kann Elemente aus dem body entfernen — Panel dann wieder anhängen.
+        if (!document.body.contains(panel)) {
+            document.body.appendChild(panel);
+            console.warn('[Auto-Buy] Panel war aus der Seite entfernt worden — wieder angehängt.');
+        }
         ensureListener(getSocket());
         processShops();
         renderItems();
